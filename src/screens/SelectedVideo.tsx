@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 
 const SelectedVideo = ({route}:any) => {
-  const { videoData } = route.params;
+  const { videoData, apiKey, videoFile } = route.params;
   const videoRef = useRef<VideoRef>(null);
   // const background = require(video.uri);
   
@@ -32,16 +32,21 @@ const SelectedVideo = ({route}:any) => {
         // onBuffer={onBuffer}
         // onError={onError}
         // style={styles.backgroundVideo}
-        style={{width: '100%', height: 600}}
+        style={{width: '100%', height: 700}}
       />
 
       <TouchableOpacity
-        onPress={() => {navigation.navigate('ChooseImage', {
-          videoData: videoData
-        })}}
+        onPress={() => {navigation.navigate('ChooseImage', { videoData, apiKey, videoFile })}}
         style={styles.buttonStyle}
       >
-        <Text style={styles.buttonText}>Click to use</Text>
+        <LinearGradient
+          colors={['#9A0EF9', '#9A0EF933', '#3F63EF']}
+          start={{x: 0, y: 0}}
+          end={{x: 1, y: 0}}
+          style={{flex: 1, padding: 14, borderRadius: 16}}
+        >
+          <Text style={styles.buttonText}>Click to use</Text>
+        </LinearGradient>
       </TouchableOpacity>
 
       <Modal visible={isModalOpen} transparent={true} animationType="fade">
@@ -84,24 +89,24 @@ const styles = StyleSheet.create({
     left: 0,
     bottom: 0,
     right: 0,
-  }, mainContainer: {
-    position: 'relative'
+  },
+  mainContainer: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
   },
   buttonStyle: {
     width: 200,
     margin: 'auto',
+    marginTop: 30,
     backgroundColor: '#A027F2',
-    padding: 10,
-    borderRadius: 10,
-    display: 'flex',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    alignContent: 'center',
+    // padding: 10,
+    borderRadius: 16,
   },
   buttonText: {
     color: 'white',
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   modalContainer: {
     flex: 1,
@@ -121,13 +126,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 10,
   },
   description: {
     fontSize: 14,
+    fontWeight: 400,
     color: 'white',
     textAlign: 'center',
     marginBottom: 20,
@@ -147,7 +153,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   notNowText: {
-    color: 'white',
+    color: '#FFFFFF99',
     fontSize: 14,
     paddingTop: 16,
     paddingBottom: 8,

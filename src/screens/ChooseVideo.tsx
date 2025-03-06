@@ -1,10 +1,11 @@
 import { Button, Image, Modal, PermissionsAndroid, Platform, Pressable, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { imagesPath } from '../assets/imagesPath';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
+import axios from 'axios';
 
 const ChooseVideo = () => {
   const navigation = useNavigation();
@@ -12,7 +13,9 @@ const ChooseVideo = () => {
   const [pickerResponse, setPickerResponse] = useState<null|object>(null);
   const [imageFromDB, setImageFromDB] = useState<string>("");
   const [deviceId, setDeviceId] = useState<string|null>(null);
-  console.log("device id...", deviceId);
+  // console.log("device id...", deviceId);
+  const [apiKey, setApiKey] = useState<string|null>(null);
+  // console.log("api key...", apiKey);
 
   const fetchDeviceId = async () => {
     // const id = await DeviceInfo.getUniqueId();
@@ -23,11 +26,81 @@ const ChooseVideo = () => {
     fetchDeviceId();
   }, []);
 
+  // useEffect(() => {
+  //   const formdata = new FormData();
+  //   formdata.append('device_id', 'iuewfweuofg')
+  //   const createSession = async () => {
+  //     try {
+  //       const result = await axios.post('http://192.168.0.137:5000/create_session', formdata, {
+  //         headers: {
+  //           'Content-Type': 'multipart/form-data'
+  //         }
+  //       });
+  //       setApiKey(result.data.api_key);
+  //       // console.log("result...", result.data);
+  //     } catch (error) {
+  //       console.log("error...", error);
+  //     }
+  //   };
+  //   createSession();
+  // }, []);
+
   // console.log("picker response...", pickerResponse);
+
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Screen is focused");
+      const formdata = new FormData();
+      formdata.append('device_id', 'iuewfweuofg')
+      const createSession = async () => {
+        try {
+          const result = await axios.post('http://192.168.0.137:5000/create_session', formdata, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+          setApiKey(result.data.api_key);
+          // console.log("result...", result.data);
+        } catch (error) {
+          console.log("error...", error);
+        }
+      };
+      createSession();
+      return () => {
+        console.log("Screen is unfocused");
+      }
+    }, [])
+  );
 
   const closeModal = () => {
     setIsModalOpen(false);
   };
+
+  const uploadVideoFile = async (video:object) => {
+    const videoForm = new FormData();
+    videoForm.append('file', {
+      uri: video.uri,
+      type: video.type,
+      name: video.fileName,
+    });
+    console.log("videoForm...", videoForm);
+    try {
+      const result = await axios.post('http://192.168.0.137:5000/video_upload', videoForm, {
+        headers: {
+          "Content-Type": 'multipart/form-data',
+          "Authorization": `Bearer ${apiKey}`,
+        }
+      });
+      // console.log(result.data);
+      navigation.navigate('SelectedVideo', {
+        videoData: video,
+        apiKey,
+        videoFile: result.data.filename
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
 
   const openImagesLibrary = async () => {
     const options = {
@@ -55,9 +128,12 @@ const ChooseVideo = () => {
               console.log('Image picker error:', response.errorMessage);
             } else {
               // setPickerResponse(response);
-              navigation.navigate('SelectedVideo', {
-                videoData: response.assets[0]
-              });
+              // navigation.navigate('SelectedVideo', {
+              //   videoData: response.assets[0],
+              //   apiKey
+              // });
+              // console.log(response.assets[0]);
+              uploadVideoFile(response.assets[0]);
             }
             // navigation.goBack();
             // console.log(response);
@@ -78,9 +154,12 @@ const ChooseVideo = () => {
               console.log('Image picker error:', response.errorMessage);
             } else {
               // setPickerResponse(response);
-              navigation.navigate('SelectedVideo', {
-                videoData: response.assets[0]
-              });
+              // navigation.navigate('SelectedVideo', {
+              //   videoData: response.assets[0],
+              //   apiKey
+              // });
+              // console.log(response.assets[0]);
+              uploadVideoFile(response.assets[0]);
             }
             // navigation.goBack();
             // console.log(response);
@@ -163,8 +242,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    // backgroundColor: '#1A0B3299',
-    // backgroundColor: 'linear-gradient(to bottom right, #00000000, #1A0B3299)',
   },
   buttonAreaHeader: {
     fontSize: 40,
@@ -209,7 +286,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     position: 'relative',
     height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)'
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   modalView: {
     position: 'absolute',

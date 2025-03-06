@@ -2,11 +2,13 @@ import { Button, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, V
 import React, { useEffect, useRef, useState } from 'react'
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import Video, { VideoRef } from 'react-native-video';
+import axios from 'axios';
+import LinearGradient from 'react-native-linear-gradient';
 
 const SelectedImage = ({route}:any) => {
   const navigation = useNavigation();
-  const {videoData, ImageData} = route.params;
-  console.log("image data...", ImageData);
+  const {videoData, apiKey, videoFile, ImageData, imageFile} = route.params;
+  // console.log("image data...", ImageData);
   const [apiCalled, setApiCalled]= useState<Boolean>(false);
   const [data, setData] = useState<null|object>(null);
   const videoRef = useRef<VideoRef>(null);
@@ -14,22 +16,38 @@ const SelectedImage = ({route}:any) => {
 
   const [isModalOpen, setIsModalOpen] = useState<Boolean>(true);
   
-  const handleAccept = () => {
+  const handleAccept = async() => {
     setIsModalOpen(false);
-    setApiCalled(true);
+    // setApiCalled(true);
+    const imposeForm = new FormData();
+    imposeForm.append("video_file", videoFile);
+    imposeForm.append("image_file", imageFile);
+    try {
+      setApiCalled(true);
+      const result = await axios.post('http://192.168.0.137:5000/start_impose_video', imposeForm, {
+        headers: {
+          "Content-Type": 'multipart/form-data',
+          "Authorization": `Bearer ${apiKey}`,
+        }
+      });
+      console.log("result...", result.data);
+      setData(result.data);
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   const handleNotNow = () => {
     navigation.goBack();
   };
 
-  useEffect(() => {
-    if(apiCalled) {
-      setTimeout(() => {
-        setData({videoData, ImageData});
-      }, 2000);
-    } 
-  }, [apiCalled]);
+  // useEffect(() => {
+  //   if(apiCalled) {
+  //     setTimeout(() => {
+  //       setData({videoData, ImageData});
+  //     }, 2000);
+  //   } 
+  // }, [apiCalled]);
 
   const cancelProcess = () => {
     navigation.dispatch(
@@ -40,11 +58,33 @@ const SelectedImage = ({route}:any) => {
     )
   };
 
+  const downloadVideo = async () => {
+    if(data) {
+      const downloadForm = new FormData();
+      downloadForm.append("file_name", data.filename);
+      console.log("image form...", downloadForm);
+      try {
+        const result = await axios.post('http://192.168.0.137:5000/download_file', downloadForm, {
+          headers: {
+            "Content-Type": 'multipart/form-data',
+            "Authorization": `Bearer ${apiKey}`,
+          }
+        });
+        // console.log(result.data);
+        navigation.navigate('ExportScreen', {
+          data: result.data
+        })
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  };
+
   return (
     <ScrollView style={styles.mainContainer}>
       <View style={styles.closeButton}>
         <TouchableOpacity onPress={() => {setGiveUpModal(true)}}>
-          <Text>X</Text>
+          <Text style={{color: 'white'}}>X</Text>
         </TouchableOpacity>
       </View>
       {/* <Text>SelectedVideo</Text> */}
@@ -52,7 +92,7 @@ const SelectedImage = ({route}:any) => {
         data ? <Video
           source={{uri: videoData.uri}}
           ref={videoRef}
-          controls={true}
+          controls={false}
           paused={true}
           resizeMode='contain'
           // onBuffer={onBuffer}
@@ -71,16 +111,18 @@ const SelectedImage = ({route}:any) => {
 
       {
         data ? "" : apiCalled
-        ? <Text>Your video is coming soon...</Text>
-        : <Text>Your task is processing...</Text>
+        ? <Text style={styles.processingText}>Your video is coming soon...</Text>
+        : <Text style={styles.processingText}>Your task is processing...</Text>
       }
       
       {
         data ? <TouchableOpacity
           onPress={() => {
             navigation.navigate('ExportScreen', {
-              data: data
+              data: data,
+              apiKey
             })
+            // downloadVideo();
           }}
           style={styles.buttonStyle}
         >
@@ -90,7 +132,8 @@ const SelectedImage = ({route}:any) => {
         : <TouchableOpacity
         onPress={() => {
           // navigation.navigate('ExportScreen', {
-          //   data: data
+          //   data: data,
+          //   apiKey
           // })
         }}
         style={styles.buttonStyle}
@@ -133,7 +176,14 @@ const SelectedImage = ({route}:any) => {
             
             {/* Accept Button */}
             <TouchableOpacity style={styles.acceptButton} onPress={handleAccept}>
-              <Text style={styles.acceptText}>Accept</Text>
+              <LinearGradient
+                colors={['#9A0EF9', '#9A0EF933', '#3F63EF']}
+                start={{x: 0, y: 0}}
+                end={{x: 1, y: 0}}
+                style={{padding: 14, borderRadius: 8, width: '100%', justifyContent: 'center', alignItems: 'center',}}
+              >
+                <Text style={styles.acceptText}>Accept</Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             {/* Not Now Button */}
@@ -180,7 +230,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
   }, mainContainer: {
-    position: 'relative'
+    position: 'relative',
+    backgroundColor: '#0A0215',
+  },
+  processingText: {
+
   },
   modalContainer: {
     flex: 1,
@@ -200,20 +254,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 10,
   },
   description: {
     fontSize: 14,
+    fontWeight: 400,
     color: 'white',
     textAlign: 'center',
     marginBottom: 20,
   },
   acceptButton: {
     backgroundColor: '#A027F2',
-    paddingVertical: 12,
+    // paddingVertical: 12,
     width: '100%',
     borderRadius: 8,
     alignItems: 'center',
@@ -222,10 +277,14 @@ const styles = StyleSheet.create({
   acceptText: {
     color: 'white',
     fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 16,
   },
   notNowText: {
-    color: 'white',
+    color: '#FFFFFF99',
     fontSize: 14,
+    paddingTop: 8,
+    paddingBottom: 0,
   },
   imageContainer: {
     width: '100%',
@@ -237,7 +296,7 @@ const styles = StyleSheet.create({
     height: '100%',
     padding: 20,
     borderWidth: 1,
-    borderColor: 'black',
+    borderColor: '#900FEC',
   },
   buttonsRow: {
     display: 'flex',
