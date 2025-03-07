@@ -1,8 +1,9 @@
-import { Button, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Button, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import React, { useRef, useState } from 'react';
 import Video, { VideoRef } from 'react-native-video';
 import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
+import { imagesPath } from '../assets/imagesPath';
 
 const SelectedVideo = ({route}:any) => {
   const { videoData, apiKey, videoFile } = route.params;
@@ -11,6 +12,25 @@ const SelectedVideo = ({route}:any) => {
   
   const [isModalOpen, setIsModalOpen] = useState<Boolean>(true);
   const navigation = useNavigation();
+  const [isPlaying, setIsPlaying] = useState<Boolean>(false);
+  const [currentTime, setCurrentTime] = useState<Number>(0);
+  const [duration, setDuration] = useState<Number>(0);
+  const [lastPosition, setLastPosition] = useState<Number>(0);
+  // const [isFocused, setIsFocused] = useState<Boolean>(false);
+
+  const togglePlayback = () => {
+    if(!isPlaying) {
+      videoRef.current.seek(lastPosition);
+    } else {
+      setLastPosition(currentTime);
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleVideoEnd = () => {
+    setIsPlaying(false);
+    setLastPosition(0);
+  };
 
   const handleAccept = () => {
     setIsModalOpen(false);
@@ -23,31 +43,48 @@ const SelectedVideo = ({route}:any) => {
   return (
     <ScrollView style={styles.mainContainer}>
       {/* <Text>SelectedVideo</Text> */}
+      <View style={{display: 'flex', justifyContent: 'flex-start', padding: 10}}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Image source={imagesPath.backArrow} style={{width: 20, height: 20}}/>
+        </TouchableOpacity>
+      </View>
+
       <Video
         source={{uri: videoData.uri}}
         ref={videoRef}
-        controls={true}
-        paused={isModalOpen}
+        paused={!isPlaying}
         resizeMode='contain'
-        // onBuffer={onBuffer}
-        // onError={onError}
-        // style={styles.backgroundVideo}
-        style={{width: '100%', height: 700}}
+        onEnd={handleVideoEnd}
+        onProgress={(data) => setCurrentTime(data.currentTime)}
+        onLoad={(data) => setDuration(data.duration)}
+        style={styles.video}
       />
 
-      <TouchableOpacity
-        onPress={() => {navigation.navigate('ChooseImage', { videoData, apiKey, videoFile })}}
-        style={styles.buttonStyle}
-      >
-        <LinearGradient
-          colors={['#9A0EF9', '#9A0EF933', '#3F63EF']}
-          start={{x: 0, y: 0}}
-          end={{x: 1, y: 0}}
-          style={{flex: 1, padding: 14, borderRadius: 16}}
-        >
-          <Text style={styles.buttonText}>Click to use</Text>
-        </LinearGradient>
+      {/* <View style={styles.timeContainer}>
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBar, { width: `${(currentTime / duration) * 100}%` }]} />
+        </View>
+      </View> */}
+
+      <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
+        <Image source={isPlaying ? imagesPath.pauseButton : imagesPath.playButton} style={{width: 50, height: 50}} />
       </TouchableOpacity>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          onPress={() => {navigation.navigate('ChooseImage', { videoData, apiKey, videoFile })}}
+          style={styles.buttonStyle}
+        >
+          <LinearGradient
+            colors={['#9A0EF9', '#9A0EF933', '#3F63EF']}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 0}}
+            style={{flex: 1, padding: 14, borderRadius: 16}}
+          >
+            <Text style={styles.buttonText}>Click to use</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
 
       <Modal visible={isModalOpen} transparent={true} animationType="fade">
         <View style={styles.modalContainer}>
@@ -63,7 +100,7 @@ const SelectedVideo = ({route}:any) => {
                 colors={['#9A0EF9', '#9A0EF933', '#3F63EF']}
                 start={{x: 0, y: 0}}
                 end={{x: 1, y: 0}}
-                style={{padding: 14, borderRadius: 8, width: '100%', justifyContent: 'center', alignItems: 'center',}}
+                style={{padding: 14, borderRadius: 16, width: '100%', justifyContent: 'center', alignItems: 'center',}}
               >
                 <Text style={styles.acceptText}>Accept</Text>
               </LinearGradient>
@@ -90,10 +127,45 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
   },
+  timeContainer: {
+    position: 'absolute',
+    bottom: 110,
+    left: 10,
+    right: 10,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 5, // Thickness of the bar
+    backgroundColor: '#ddd', // Background color of progress bar
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginTop: 10,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#6683E1', // Color of the progress indicator
+  },
   mainContainer: {
     position: 'relative',
     width: '100%',
     height: '100%',
+    backgroundColor: '#0A0215',
+  },
+  video: {
+    width: '100%',
+    height: 700,
+  },
+  playButton: {
+    position: 'absolute',
+    top: '45%',
+    left: '45%',
+    // backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 10,
+    left: 0,
+    right: 0,
   },
   buttonStyle: {
     width: 200,
@@ -142,7 +214,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#A027F2',
     // paddingVertical: 12,
     width: '100%',
-    borderRadius: 8,
+    borderRadius: 16,
     alignItems: 'center',
     marginBottom: 10,
   },

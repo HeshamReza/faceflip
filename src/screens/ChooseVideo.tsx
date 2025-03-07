@@ -16,6 +16,7 @@ const ChooseVideo = () => {
   // console.log("device id...", deviceId);
   const [apiKey, setApiKey] = useState<string|null>(null);
   // console.log("api key...", apiKey);
+  const [apiCalled, setApiCalled] = useState<Boolean>(false);
 
   const fetchDeviceId = async () => {
     // const id = await DeviceInfo.getUniqueId();
@@ -31,7 +32,7 @@ const ChooseVideo = () => {
   //   formdata.append('device_id', 'iuewfweuofg')
   //   const createSession = async () => {
   //     try {
-  //       const result = await axios.post('http://192.168.0.137:5000/create_session', formdata, {
+  //       const result = await axios.post('http://192.168.0.137:5002/create_session', formdata, {
   //         headers: {
   //           'Content-Type': 'multipart/form-data'
   //         }
@@ -54,7 +55,7 @@ const ChooseVideo = () => {
       formdata.append('device_id', 'iuewfweuofg')
       const createSession = async () => {
         try {
-          const result = await axios.post('http://192.168.0.137:5000/create_session', formdata, {
+          const result = await axios.post('http://192.168.0.137:5002/create_session', formdata, {
             headers: {
               'Content-Type': 'multipart/form-data'
             }
@@ -84,14 +85,16 @@ const ChooseVideo = () => {
       name: video.fileName,
     });
     console.log("videoForm...", videoForm);
+    setApiCalled(true);
     try {
-      const result = await axios.post('http://192.168.0.137:5000/video_upload', videoForm, {
+      const result = await axios.post('http://192.168.0.137:5002/video_upload', videoForm, {
         headers: {
           "Content-Type": 'multipart/form-data',
           "Authorization": `Bearer ${apiKey}`,
         }
       });
       // console.log(result.data);
+      setApiCalled(false);
       navigation.navigate('SelectedVideo', {
         videoData: video,
         apiKey,
@@ -99,6 +102,7 @@ const ChooseVideo = () => {
       });
     } catch (error) {
       console.log(error);
+      setApiCalled(false);
     }
   }
 
@@ -175,6 +179,30 @@ const ChooseVideo = () => {
   return (
     <SafeAreaView>
       <View style={styles.container}>
+        <View style={{position: 'absolute', top: 0, bottom: '50%', left: 0, right: 0, zIndex: 1}}>
+          <LinearGradient
+            colors={['#0000004D', '#0000001A', 'transparent']}
+            start={{x: 0, y: 0}}
+            end={{x: 0, y: 1}}
+            style={{flex: 1, paddingTop: 60,}}
+          ></LinearGradient>
+        </View>
+        <View style={styles.backgroundImageArea}>
+          <View style={styles.backgroundImageAreaCol1}>
+            <Image source={imagesPath.bg1} style={styles.bgImage} />
+            <Image source={imagesPath.bg2} style={styles.bgImage} />
+            <Image source={imagesPath.bg3} style={styles.bgImage} />
+          </View>
+          <View style={styles.backgroundImageAreaCol2}>
+            <Image source={imagesPath.bg4} style={styles.bgImage} />
+            <Image source={imagesPath.bg5} style={styles.bgImage} />
+          </View>
+          <View style={styles.backgroundImageAreaCol3}>
+            <Image source={imagesPath.bg6} style={styles.bgImage} />
+            <Image source={imagesPath.bg7} style={styles.bgImage} />
+            <Image source={imagesPath.bg1} style={styles.bgImage} />
+          </View>
+        </View>
         <View style={styles.buttonArea}>
           <LinearGradient
             colors={['transparent', '#1A0B32E6', '#1A0B32']}
@@ -185,7 +213,7 @@ const ChooseVideo = () => {
             <Text style={styles.buttonAreaHeader}>Choose a Classic Portrait Video</Text>
             <Text style={styles.buttonAreaSubtitle}>Don't worry, we won't save your videos. We will delete videos after analyzing facial features.</Text>
             <TouchableOpacity
-              onPress={() => {setIsModalOpen(true)}}
+              onPress={() => {setIsModalOpen(apiCalled ? false : true)}}
               style={styles.buttonStyle}
             >
               <LinearGradient
@@ -194,7 +222,7 @@ const ChooseVideo = () => {
                 end={{x: 1, y: 0}}
                 style={{flex: 1, padding: 14, borderRadius: 16}}
               >
-                <Text style={styles.buttonText}>I got it!</Text>
+                <Text style={styles.buttonText}>{apiCalled ? "Loading..." : "I got it!"}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </LinearGradient>
@@ -217,7 +245,7 @@ const ChooseVideo = () => {
                     </View>
                   </Pressable>
                 </View>
-                </View>
+              </View>
             </View>
           </TouchableWithoutFeedback>
         </Modal>
@@ -236,12 +264,48 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
+  backgroundImageArea: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 10,
+    backgroundColor: '#A027F2',
+    height: '100%'
+  },
+  backgroundImageAreaCol1: {
+    width: '33%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    paddingRight: 5,
+  },
+  backgroundImageAreaCol2: {
+    width: '33%',
+    paddingTop: 100,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    paddingHorizontal: 5,
+  },
+  backgroundImageAreaCol3: {
+    width: '33%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    paddingLeft: 5,
+  },
+  bgImage: {
+    width: '100%',
+    height: 170,
+    borderRadius: 10,
+  },
   buttonArea: {
     position: 'absolute',
     top: '50%',
     bottom: 0,
     left: 0,
     right: 0,
+    zIndex: 10,
   },
   buttonAreaHeader: {
     fontSize: 40,

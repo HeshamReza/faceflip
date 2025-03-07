@@ -12,6 +12,7 @@ const ChooseImage = ({route}:any) => {
   const [isModalOpen, setIsModalOpen] = useState<Boolean>(false);
   const [pickerResponse, setPickerResponse] = useState<null|object>(null);
   const [imageFromDB, setImageFromDB] = useState<string>("");
+  const [apiCalled, setApiCalled] = useState<Boolean>(false);
 
   const { videoData, apiKey, videoFile } = route.params;
 
@@ -30,14 +31,16 @@ const ChooseImage = ({route}:any) => {
       name: image.fileName,
     });
     console.log("image form...", imageForm);
+    setApiCalled(true);
     try {
-      const result = await axios.post('http://192.168.0.137:5000/image_upload', imageForm, {
+      const result = await axios.post('http://192.168.0.137:5002/image_upload', imageForm, {
         headers: {
           "Content-Type": 'multipart/form-data',
           "Authorization": `Bearer ${apiKey}`,
         }
       });
       // console.log(result.data);
+      setApiCalled(false);
       navigation.navigate('SelectedImage', {
         videoData,
         apiKey,
@@ -47,6 +50,7 @@ const ChooseImage = ({route}:any) => {
       });
     } catch (error) {
       console.log(error);
+      setApiCalled(false);
     }
   }
 
@@ -119,31 +123,70 @@ const ChooseImage = ({route}:any) => {
 
   return (
     <SafeAreaView>
-      {/* <View style={styles.container}>
-        <Text>Choose a Classic Portrait Selfie</Text>
-        <TouchableOpacity
-          onPress={() => {setIsModalOpen(true)}}
-          style={styles.buttonStyle}
-        >
-          <Text style={styles.buttonText}>I got it!</Text>
-        </TouchableOpacity>
-        <Modal
-          animationType='slide'
-          transparent={true}
-          visible={isModalOpen}
-          onRequestClose={() => {closeModal()}}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalView}>
-              <Text>Select image from one of the option</Text>
-              <Pressable onPress={() => {openImagesLibrary()}}>
-                <Image source={imagesPath.gallery} style={styles.imageButton} />
-              </Pressable>
+      <View style={styles.container}>
+        <View style={{position: 'absolute', top: 0, bottom: '50%', left: 0, right: 0, zIndex: 1}}>
+          <LinearGradient
+            colors={['#0000004D', '#0000001A', 'transparent']}
+            start={{x: 0, y: 0}}
+            end={{x: 0, y: 1}}
+            style={{flex: 1}}
+          >
+            <View style={{display: 'flex', justifyContent: 'flex-start', padding: 10}}>
+              <TouchableOpacity onPress={() => navigation.goBack()}>
+                <Image source={imagesPath.backArrow} style={{width: 20, height: 20}}/>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </View>
+        <View style={styles.backgroundImageArea}>
+          {/* middle image */}
+          <View style={{width: 150, height: 150, borderRadius: 9999, position: 'absolute', top: 160, left: '32%'}}>
+            <Image source={imagesPath.img1} style={{width: "100%", height: "100%", borderRadius: 9999, objectFit: 'cover',}}/>
+            <View style={{width: 30, height: 30, padding: 5, paddingTop: 8, backgroundColor: '#3EC167', borderRadius: 50, alignItems: 'center', marginLeft: 'auto', marginTop: -40}}>
+              <Image source={imagesPath.tickMark} style={{width: "100%", height: "100%",}} />
             </View>
           </View>
-        </Modal>
-      </View> */}
-      <View style={styles.container}>
+
+          {/* top left image */}
+          <View style={{width: 60, height: 60, borderRadius: 9999, position: 'absolute', top: 120, left: '3%'}}>
+            <Image source={imagesPath.img2} style={{width: "100%", height: "100%", borderRadius: 9999, objectFit: 'cover',}}/>
+            <View style={{width: 10, height: 10, padding: 2, backgroundColor: '#E64344', borderRadius: 50, alignItems: 'center', marginLeft: 'auto', marginTop: -15, marginRight: 2, }}>
+              <Image source={imagesPath.close} style={{width: "100%", height: "100%",}} />
+            </View>
+          </View>
+
+          {/* bottom left image */}
+          <View style={{width: 120, height: 120, borderRadius: 9999, position: 'absolute', top: 270, left: '-10%'}}>
+            <Image source={imagesPath.img3} style={{width: "100%", height: "100%", borderRadius: 9999, objectFit: 'cover',}}/>
+            <View style={{width: 16, height: 16, padding: 4, backgroundColor: '#E64344', borderRadius: 50, alignItems: 'center', marginLeft: 'auto', marginTop: -30, marginRight: 6, }}>
+              <Image source={imagesPath.close} style={{width: "100%", height: "100%",}} />
+            </View>
+          </View>
+
+          {/* middle bottom image */}
+          <View style={{width: 60, height: 60, borderRadius: 9999, position: 'absolute', top: 360, left: '60%'}}>
+            <Image source={imagesPath.img4} style={{width: "100%", height: "100%", borderRadius: 9999, objectFit: 'cover',}}/>
+            <View style={{width: 10, height: 10, padding: 2.5, backgroundColor: '#E64344', borderRadius: 50, alignItems: 'center', marginLeft: 'auto', marginTop: -16, }}>
+              <Image source={imagesPath.close} style={{width: "100%", height: "100%",}} />
+            </View>
+          </View>
+
+          {/* bottom right image */}
+          <View style={{width: 120, height: 120, borderRadius: 9999, position: 'absolute', top: 250, left: '80%'}}>
+            <Image source={imagesPath.img5} style={{width: "100%", height: "100%", borderRadius: 9999, objectFit: 'cover',}}/>
+            {/* <View style={{width: 16, height: 16, padding: 4, backgroundColor: '#E64344', borderRadius: 50, alignItems: 'center', marginLeft: 'auto', marginTop: -30, marginRight: 6, }}>
+              <Image source={imagesPath.close} style={{width: "100%", height: "100%",}} />
+            </View> */}
+          </View>
+
+          {/* top right image */}
+          <View style={{width: 100, height: 100, borderRadius: 9999, position: 'absolute', top: 75, left: '78%'}}>
+            <Image source={imagesPath.img6} style={{width: "100%", height: "100%", borderRadius: 9999, objectFit: 'cover',}}/>
+            {/* <View style={{width: 16, height: 16, padding: 4, backgroundColor: '#E64344', borderRadius: 50, alignItems: 'center', marginLeft: 'auto', marginTop: -30, marginRight: 6, }}>
+              <Image source={imagesPath.close} style={{width: "100%", height: "100%",}} />
+            </View> */}
+          </View>
+        </View>
         <View style={styles.buttonArea}>
           <LinearGradient
             colors={['transparent', '#1A0B32E6', '#1A0B32']}
@@ -163,7 +206,7 @@ const ChooseImage = ({route}:any) => {
                 end={{x: 1, y: 0}}
                 style={{flex: 1, padding: 14, borderRadius: 16}}
               >
-                <Text style={styles.buttonText}>I got it!</Text>
+                <Text style={styles.buttonText}>{apiCalled ? "Loading..." : 'I got it!'}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </LinearGradient>
@@ -202,6 +245,16 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
     width: '100%',
+    height: '100%',
+    position: 'relative',
+    backgroundColor: '#0A0215',
+  },
+  backgroundImageArea: {
+    // display: 'flex',
+    // flexDirection: 'row',
+    // justifyContent: 'space-between',
+    // padding: 10,
+    backgroundColor: '#A027F2',
     height: '100%',
     position: 'relative',
   },

@@ -1,9 +1,11 @@
-import { Button, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Animated, Button, Dimensions, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import React, { useEffect, useRef, useState } from 'react'
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import Video, { VideoRef } from 'react-native-video';
 import axios from 'axios';
 import LinearGradient from 'react-native-linear-gradient';
+import { imagesPath } from '../assets/imagesPath';
+import RNFS from 'react-native-fs';
 
 const SelectedImage = ({route}:any) => {
   const navigation = useNavigation();
@@ -11,10 +13,108 @@ const SelectedImage = ({route}:any) => {
   // console.log("image data...", ImageData);
   const [apiCalled, setApiCalled]= useState<Boolean>(false);
   const [data, setData] = useState<null|object>(null);
+  const [errorStatus, setErrorStatus] = useState<Boolean>(false);
   const videoRef = useRef<VideoRef>(null);
   const [giveUpModal, setGiveUpModal] = useState<Boolean>(false);
 
   const [isModalOpen, setIsModalOpen] = useState<Boolean>(true);
+  const [waitingTime, setWaitingTime] = useState<Number>(0);
+  const [seconds, setSeconds] = useState<string>("00");
+  const [minutes, setMinutes] = useState<string>("00");
+  const [videoUrl, setVideoUrl] = useState<string|null>(null);
+  // console.log("video url...", videoUrl);
+  const spinValue = useRef(new Animated.Value(0)).current;
+  const [isPlaying, setIsPlaying] = useState<Boolean>(false);
+  const [currentTime, setCurrentTime] = useState<Number>(0);
+  const [duration, setDuration] = useState<Number>(0);
+  const [lastPosition, setLastPosition] = useState<Number>(0);
+
+  const togglePlayback = () => {
+    if(!isPlaying) {
+      videoRef.current.seek(lastPosition);
+    } else {
+      setLastPosition(currentTime);
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleVideoEnd = () => {
+    setIsPlaying(false);
+    setLastPosition(0);
+  };
+
+  const { width } = Dimensions.get('window');
+
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 7000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(translateX, {
+          toValue: width - 40,
+          duration: 2000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateX, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  useEffect(() => {
+    let timer;
+    if(apiCalled) {
+      if(!data) {
+        timer = setInterval(() => {
+          setWaitingTime(prev => prev + 1);
+        }, 1000);
+      }
+    }
+    return () => clearInterval(timer);
+  }, [apiCalled, data]);
+
+  useEffect(() => {
+    if(waitingTime > 0) {
+      const sec = waitingTime % 60;
+      if(sec > 9) {
+        setSeconds(sec.toString());
+      } else {
+        setSeconds(`0${sec}`);
+      }
+    }
+  }, [waitingTime]);
+
+  useEffect(() => {
+    if(waitingTime > 0) {
+      const min = Math.floor(waitingTime / 60);
+      if(min > 9) {
+        setMinutes(min.toString());
+      } else {
+        setMinutes(`0${min}`);
+      }
+    }
+  }, [waitingTime]);
   
   const handleAccept = async() => {
     setIsModalOpen(false);
@@ -24,7 +124,8 @@ const SelectedImage = ({route}:any) => {
     imposeForm.append("image_file", imageFile);
     try {
       setApiCalled(true);
-      const result = await axios.post('http://192.168.0.137:5000/start_impose_video', imposeForm, {
+      // PushNotification
+      const result = await axios.post('http://192.168.0.137:5002/start_impose_video', imposeForm, {
         headers: {
           "Content-Type": 'multipart/form-data',
           "Authorization": `Bearer ${apiKey}`,
@@ -34,6 +135,7 @@ const SelectedImage = ({route}:any) => {
       setData(result.data);
     } catch (error) {
       console.log(error);
+      setErrorStatus(true);
     }
   };
 
@@ -64,7 +166,7 @@ const SelectedImage = ({route}:any) => {
       downloadForm.append("file_name", data.filename);
       console.log("image form...", downloadForm);
       try {
-        const result = await axios.post('http://192.168.0.137:5000/download_file', downloadForm, {
+        const result = await axios.post('http://192.168.0.137:5002/download_file', downloadForm, {
           headers: {
             "Content-Type": 'multipart/form-data',
             "Authorization": `Bearer ${apiKey}`,
@@ -80,67 +182,179 @@ const SelectedImage = ({route}:any) => {
     }
   };
 
+  const blobToBase64 = async (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const fetchVideo = async () => {
+    const downloadForm = new FormData();
+    if(data) {
+      downloadForm.append("file_name", data.filename);
+      try {
+        const result = await axios.post('http://192.168.0.137:5002/download_file', downloadForm, {
+          headers: {
+            "Content-Type": 'multipart/form-data',
+            "Authorization": `Bearer ${apiKey}`,
+          },
+          responseType: 'blob',
+        });
+        // console.log("data...", result.data);
+        const filePath = `${RNFS.DocumentDirectoryPath}/video.mp4`;
+        console.log("filePath...", filePath);
+        
+        const base64Data = await blobToBase64(result.data);
+        await RNFS.writeFile(filePath, base64Data, 'base64');
+        setVideoUrl(`file://${filePath}`);
+
+        const fileExists = await RNFS.exists(filePath);
+        if(fileExists) {
+          console.log("✅ Video saved successfully:", filePath);
+        } else {
+          console.error("❌ Video file was not saved.");
+        }
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchVideo();
+  }, [data]);
+
   return (
     <ScrollView style={styles.mainContainer}>
       <View style={styles.closeButton}>
         <TouchableOpacity onPress={() => {setGiveUpModal(true)}}>
-          <Text style={{color: 'white'}}>X</Text>
+          <Image source={imagesPath.close} style={{width: 16, height: 16}} />
         </TouchableOpacity>
       </View>
       {/* <Text>SelectedVideo</Text> */}
       {
-        data ? <Video
-          source={{uri: videoData.uri}}
-          ref={videoRef}
-          controls={false}
-          paused={true}
-          resizeMode='contain'
-          // onBuffer={onBuffer}
-          // onError={onError}
-          // style={styles.backgroundVideo}
-          style={{width: '100%', height: 600}}
-        /> : <View style={styles.imageContainer}>
+        videoUrl ? <View style={{width: "100%", height: 600, position: 'relative'}}>
+          <Video
+            source={{uri: videoUrl}}
+            ref={videoRef}
+            paused={!isPlaying}
+            resizeMode='contain'
+            onEnd={handleVideoEnd}
+            onProgress={(data) => setCurrentTime(data.currentTime)}
+            onLoad={(data) => setDuration(data.duration)}
+            style={{width: '100%', height: "100%"}}
+          />
+          <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
+            <Image source={isPlaying ? imagesPath.pauseButton : imagesPath.playButton} style={{width: 50, height: 50}} />
+          </TouchableOpacity>
+        </View> : data ? <View style={{width: '100%', height: 500, padding: 20, position: 'relative'}}>
+          {/* <Animated.View style={[styles.circle, { transform: [{rotate: spin}]}]} /> */}
+
+          <Image
+            source={{uri: ImageData.uri}}
+            style={{width: '100%', height: "100%", borderRadius: 8,}}
+          />
+        </View> : errorStatus ? <View style={styles.imageContainer}>
+          <Text style={styles.processingText}>Failed during processing.</Text>
+        </View> : <View style={styles.imageContainer}>
+          {
+            apiCalled && (
+              <>
+                <Animated.View
+                  style={[
+                    styles.glowingLine,
+                    {
+                      transform: [{translateX}],
+                      opacity: 0.3,
+                      width: 10,
+                      marginLeft: -5,
+                    }
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.glowingLine,
+                    {
+                      transform: [{translateX}]
+                    }
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.glowingLine,
+                    {
+                      transform: [{translateX}],
+                      opacity: 0.3,
+                      width: 10,
+                    }
+                  ]}
+                />
+              </>
+            )
+          }
           <View style={styles.imageContainer2}>
             <Image
               source={{uri: ImageData.uri}}
-              style={{width: '100%', height: '100%'}}
+              style={{width: '100%', height: '100%', borderRadius: 8,}}
             />
+
+            
+
+            {/* Top-Left Corner */}
+            <View style={[styles.corner, styles.topLeft]} />
+            
+            {/* Top-Right Corner */}
+            <View style={[styles.corner, styles.topRight]} />
+            
+            {/* Bottom-Left Corner */}
+            <View style={[styles.corner, styles.bottomLeft]} />
+            
+            {/* Bottom-Right Corner */}
+            <View style={[styles.corner, styles.bottomRight]} />
           </View>
         </View>
       }
 
-      {
-        data ? "" : apiCalled
-        ? <Text style={styles.processingText}>Your video is coming soon...</Text>
-        : <Text style={styles.processingText}>Your task is processing...</Text>
-      }
-      
-      {
-        data ? <TouchableOpacity
-          onPress={() => {
-            navigation.navigate('ExportScreen', {
-              data: data,
-              apiKey
-            })
-            // downloadVideo();
-          }}
-          style={styles.buttonStyle}
-        >
-          <Text style={styles.buttonText}>Export</Text>
-        </TouchableOpacity> : apiCalled
-        ? <Text>Please don't lock the screen or switch the app</Text>
-        : <TouchableOpacity
-        onPress={() => {
-          // navigation.navigate('ExportScreen', {
-          //   data: data,
-          //   apiKey
-          // })
-        }}
-        style={styles.buttonStyle}
-      >
-        <Text style={styles.buttonText}>Wait in background</Text>
-      </TouchableOpacity>
-      }
+      <View style={{width: '100%', display: 'flex', flexDirection: 'column', height: 200}}>
+        {
+          videoUrl ? null : data
+          ? errorStatus ? null : <Text style={styles.processingText}>Your video is coming soon...</Text>
+          : apiCalled ? <Text style={styles.processingText}>Your task is processing... {minutes}:{seconds}</Text> : null
+        }
+        
+        {
+          videoUrl ? <View style={styles.finalButtonStyle}>
+            <TouchableOpacity
+              onPress={() => {
+                navigation.navigate('ExportScreen', {
+                  data: data,
+                  apiKey,
+                  videoUrl
+                })
+                // downloadVideo();
+              }}
+              style={styles.buttonStyle}
+            >
+              <Text style={styles.buttonText}>Export</Text>
+            </TouchableOpacity>
+          </View> : apiCalled
+          ? errorStatus ? null
+          : apiCalled ? <TouchableOpacity
+            onPress={() => {
+              // navigation.navigate('ExportScreen', {
+              //   data: data,
+              //   apiKey
+              // })
+            }}
+            style={styles.buttonStyle}
+          >
+            <Text style={styles.buttonText}>Wait in background</Text>
+          </TouchableOpacity> : null : <Text style={styles.waitingText}>Please don't lock the screen or switch the app</Text>
+        }
+      </View>
 
       <Modal visible={giveUpModal} transparent={true} animationType="fade">
         <View style={styles.modalContainer}>
@@ -149,6 +363,8 @@ const SelectedImage = ({route}:any) => {
             <Text style={styles.description}>
               All unsaved content will be lost
             </Text>
+
+            <View style={{width: '115%', height: 1, backgroundColor: '#2A3549',}}></View>
             
             <View style={styles.buttonsRow}>
               {/* Accept Button */}
@@ -207,6 +423,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     padding: 10,
   },
+  finalButtonStyle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+  },
   buttonStyle: {
     width: 200,
     margin: 'auto',
@@ -223,18 +444,42 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
+  playButton: {
+    position: 'absolute',
+    top: '45%',
+    left: '45%',
+    // backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
   backgroundVideo: {
     position: 'absolute',
     top: 0,
     left: 0,
     bottom: 0,
     right: 0,
-  }, mainContainer: {
+  },
+  circle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 5,
+    borderColor: "#6683E1",
+    borderTopColor: "transparent", // Creates a spinning effect
+    position: 'absolute',
+    top: "45%",
+    left: "50%",
+    zIndex: 50,
+  },
+  mainContainer: {
     position: 'relative',
     backgroundColor: '#0A0215',
   },
   processingText: {
-
+    textAlign: 'center',
+    color: 'white',
+  },
+  waitingText: {
+    textAlign: 'center',
+    color: 'white',
   },
   modalContainer: {
     flex: 1,
@@ -262,7 +507,7 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     fontWeight: 400,
-    color: 'white',
+    color: '#757575',
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -296,13 +541,59 @@ const styles = StyleSheet.create({
     height: '100%',
     padding: 20,
     borderWidth: 1,
-    borderColor: '#900FEC',
+    borderColor: '#3C3B3F',
+    position: 'relative',
+  },
+  glowingLine: {
+    width: 5, // Adjust thickness
+    height: "100%", // Full height
+    backgroundColor: "#6683E1", // Glowing white
+    shadowColor: "#5C3E7F",
+    shadowOffset: { width: 5, height: 5 },
+    shadowOpacity: 1,
+    shadowRadius: 20, // Adjust glow effect
+    zIndex: 50,
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    bottom: 0,
+  },
+  corner: {
+    position: 'absolute',
+    width: 30,  // Adjust size of corners
+    height: 30,
+    borderColor: 'purple', // Change to match your design
+  },
+  topLeft: {
+    top: -2,
+    left: -2,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+  },
+  topRight: {
+    top: -2,
+    right: -2,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+  },
+  bottomLeft: {
+    bottom: -2,
+    left: -2,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+  },
+  bottomRight: {
+    bottom: -2,
+    right: -2,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
   },
   buttonsRow: {
     display: 'flex',
     flexDirection: 'row',
     width: '100%',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     justifyContent: 'space-between'
   },
   cancelButton: {
