@@ -22,8 +22,10 @@ const ExportScreen = ({route}:any) => {
   const [currentTime, setCurrentTime] = useState<Number>(0);
   const [duration, setDuration] = useState<Number>(0);
   const [lastPosition, setLastPosition] = useState<Number>(0);
+      const [playButtonOpacity, setPlayButtonOpacity] = useState<Number>(1);
 
   const togglePlayback = () => {
+    setPlayButtonOpacity(1);
     if(!isPlaying) {
       videoRef.current.seek(lastPosition);
     } else {
@@ -38,16 +40,26 @@ const ExportScreen = ({route}:any) => {
   };
 
   const shareVideo = async () => {
-    const options = {
-      url: videoUrl2,
-      // type: data.videoData.type,
-      message: 'Check out this video!',
-    };
-
     try {
+      const filePath = videoUrl.startsWith('file://') ? videoUrl : `file://${videoUrl}`;
+  
+      // Ensure the file exists
+      const fileExists = await RNFS.exists(filePath);
+      if (!fileExists) {
+        console.log("❌ Error: Video file doesn't exist at:", filePath);
+        return;
+      }
+  
+      const options = {
+        url: filePath, // Ensure the path is formatted correctly
+        type: 'video/mp4', // Set proper MIME type
+        message: 'Check out this video!', // Optional message
+        showAppsToView: true, // Shows all available apps
+      };
+  
       await Share.open(options);
     } catch (error) {
-      console.log("Error sharing:", error);
+      console.log("❌ Error sharing:", error);
     }
   };
 
@@ -67,76 +79,6 @@ const ExportScreen = ({route}:any) => {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-  };
-
-  const fetchVideo = async () => {
-    const downloadForm = new FormData();
-    downloadForm.append("file_name", data.filename);
-    try {
-      const result = await axios.post('http://192.168.0.137:5002/download_file', downloadForm, {
-        headers: {
-          "Content-Type": 'multipart/form-data',
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        responseType: 'blob',
-      });
-      // console.log("data...", result.data);
-      const filePath = `${RNFS.DocumentDirectoryPath}/video.mp4`;
-      console.log("filePath...", filePath);
-      
-      const base64Data = await blobToBase64(result.data);
-      await RNFS.writeFile(filePath, base64Data, 'base64');
-      setVideoUrl(`file://${filePath}`);
-
-      const fileExists = await RNFS.exists(filePath);
-      if(fileExists) {
-        console.log("✅ Video saved successfully:", filePath);
-      } else {
-        console.error("❌ Video file was not saved.");
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  useEffect(() => {
-    // fetchVideo();
-  }, [apiKey, data]);
-
-  const downloadVideo = async () => {
-    const downloadForm = new FormData();
-    downloadForm.append("file_name", data.filename);
-    console.log("image form...", downloadForm);
-    try {
-      const result = await axios.post('http://192.168.0.137:5002/download_file', downloadForm, {
-        headers: {
-          "Content-Type": 'multipart/form-data',
-          "Authorization": `Bearer ${apiKey}`,
-        }
-      });
-      // console.log(result.data);
-      setVideoUrl(result.data);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const downloadFile = () => {
-    const {config, fs} = RNFetchBlob;
-    const date = new Date();
-    const fileDir = fs.dirs.DownloadDir;
-    config({
-      fileCache: true,
-      addAndroidDownloads: {
-        useDownloadManager: true,
-        notification: true,
-        path: fileDir + '/download_' + Math.floor(date.getDate() + date.getSeconds() / 2) + '.mp4',
-        description: 'file download',
-      },
-    }).fetch('GET', data.videoData.uri, {})
-    .then(res => {
-      console.log('The file saved to', res.path());
-    })
   };
 
   const downloadVideoFile = async () => {
@@ -176,6 +118,43 @@ const ExportScreen = ({route}:any) => {
       console.log(error);
     }
   };
+  
+  const requestMediaPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        if (Platform.Version >= 33) {
+          // For Android 13+ request READ_MEDIA_VIDEO permission
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
+          );
+  
+          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+            console.log("✅ Video permission granted");
+            return true;
+          } else {
+            console.log("❌ Video permission denied");
+            return false;
+          }
+        } else {
+          // For Android <13 use READ_EXTERNAL_STORAGE
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
+          );
+  
+          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+            console.log("✅ Storage permission granted");
+            return true;
+          } else {
+            console.log("❌ Storage permission denied");
+            return false;
+          }
+        }
+      } catch (error) {
+        console.error("Error requesting permission:", error);
+        return false;
+      }
+    }
+  };
 
   const requestStoragePermission = async () => {
     const date = new Date();
@@ -183,67 +162,97 @@ const ExportScreen = ({route}:any) => {
     const moviesDir = `${RNFS.DownloadDirectoryPath}/Faceflip`;
     const newPath = `${moviesDir}/${fileName}`;
     console.log("newPath..", newPath);
-    try {
-      if(Platform.OS === 'android') {
-        if(Platform.Version >= 33) {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
-          );
-          if(granted === PermissionsAndroid.RESULTS.GRANTED) {
-            // downloadVideoFile();
-            
-            // const fileExists = await RNFS.exists(videoUrl2);
-            // if(!fileExists) {
-            //   console.log("❌ Video file doesn't exist:", videoUrl2);
-            // } else {
-            //   const dirExists = await RNFS.exists(moviesDir);
-            //   if (!dirExists) {
-            //     await RNFS.mkdir(moviesDir); b
-            //   } else {
-            //     await RNFS.moveFile(videoUrl2, newPath);
-            //     console.log('✅ Video saved to:', newPath);
-            //   }
-            // }
-            downloadVideoFile();
-          } else {
-            console.log('Storage permission denied');
-          }
-        } else {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-            {
-              title: 'Video Storage Permission',
-              message: 'Faceflip need access to your storage so you can download the video',
-              buttonNeutral: 'Ask Me Later',
-              buttonNegative: 'Cancel',
-              buttonPositive: 'OK',
-            },
-          );
-          if(granted === PermissionsAndroid.RESULTS.GRANTED) {
-            // downloadVideoFile();
-            
-            // const fileExists = await RNFS.exists(videoUrl2);
-            // if(!fileExists) {
-            //   console.log("❌ Video file doesn't exist:", videoUrl2);
-            // } else {
-            //   const dirExists = await RNFS.exists(moviesDir);
-            //   if (!dirExists) {
-            //     await RNFS.mkdir(moviesDir);
-            //   } else {
-            //     await RNFS.moveFile(videoUrl2, newPath);
-            //     console.log('✅ Video saved to:', newPath);
-            //   }
-            // }
-            downloadVideoFile();
-          } else {
-            console.log('Storage permission denied');
-          }
-        }
-      }
-    } catch (error) {
-      console.warn(error);
+
+    const hasPermission = await requestMediaPermission();
+
+    if(!hasPermission) {
+      console.log("User denied permission");
     }
+
+    downloadVideoFile();
+    // try {
+    //   if(Platform.OS === 'android') {
+    //     if(Platform.Version >= 33) {
+    //       const granted = await PermissionsAndroid.request(
+    //         PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
+    //       );
+    //       if(granted === PermissionsAndroid.RESULTS.GRANTED) {
+    //         // downloadVideoFile();
+            
+    //         // const fileExists = await RNFS.exists(videoUrl2);
+    //         // if(!fileExists) {
+    //         //   console.log("❌ Video file doesn't exist:", videoUrl2);
+    //         // } else {
+    //         //   const dirExists = await RNFS.exists(moviesDir);
+    //         //   if (!dirExists) {
+    //         //     await RNFS.mkdir(moviesDir); b
+    //         //   } else {
+    //         //     await RNFS.moveFile(videoUrl2, newPath);
+    //         //     console.log('✅ Video saved to:', newPath);
+    //         //   }
+    //         // }
+    //         downloadVideoFile();
+    //       } else {
+    //         console.log('Storage permission denied');
+    //       }
+    //     } else {
+    //       const granted = await PermissionsAndroid.request(
+    //         PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+    //         {
+    //           title: 'Video Storage Permission',
+    //           message: 'Faceflip need access to your storage so you can download the video',
+    //           buttonNeutral: 'Ask Me Later',
+    //           buttonNegative: 'Cancel',
+    //           buttonPositive: 'OK',
+    //         },
+    //       );
+    //       if(granted === PermissionsAndroid.RESULTS.GRANTED) {
+    //         // downloadVideoFile();
+            
+    //         // const fileExists = await RNFS.exists(videoUrl2);
+    //         // if(!fileExists) {
+    //         //   console.log("❌ Video file doesn't exist:", videoUrl2);
+    //         // } else {
+    //         //   const dirExists = await RNFS.exists(moviesDir);
+    //         //   if (!dirExists) {
+    //         //     await RNFS.mkdir(moviesDir);
+    //         //   } else {
+    //         //     await RNFS.moveFile(videoUrl2, newPath);
+    //         //     console.log('✅ Video saved to:', newPath);
+    //         //   }
+    //         // }
+    //         downloadVideoFile();
+    //       } else {
+    //         console.log('Storage permission denied');
+    //       }
+    //     }
+    //   }
+    // } catch (error) {
+    //   console.warn(error);
+    // }
   };
+    
+  useEffect(() => {
+    if(isPlaying) {
+      let currentOpacity = 1;
+      const interval = setInterval(() => {
+        currentOpacity -= 0.3;
+        setPlayButtonOpacity(Math.max(0, currentOpacity));
+
+        if(currentOpacity <= 0) {
+          clearInterval(interval);
+        }
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if(duration === currentTime) {
+      setPlayButtonOpacity(1);
+    }
+  }, [duration, currentTime]);
 
   return (
     <ScrollView style={{backgroundColor: '#010001'}}>
@@ -277,7 +286,7 @@ const ExportScreen = ({route}:any) => {
             style={{width: '100%', height: "100%"}}
           />
           <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
-            <Image source={isPlaying ? imagesPath.pauseButton : imagesPath.playButton} style={{width: 50, height: 50}} />
+            <Image source={isPlaying ? imagesPath.pauseButton : imagesPath.playButton} style={{width: 50, height: 50, opacity: playButtonOpacity, margin: 'auto'}} />
           </TouchableOpacity>
         </View>
       }
@@ -356,8 +365,11 @@ const styles = StyleSheet.create({
   },
   playButton: {
     position: 'absolute',
-    top: '45%',
-    left: '45%',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    alignItems: 'center',
     // backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
 });

@@ -1,0 +1,20 @@
+<View style={{ alignItems: 'center', justifyContent: 'center' }}>
+  <Svg width="100" height="100" viewBox='0 0 100 100'>
+    {/* Background Circle */}
+    <Circle cx="50" cy="50" r="40" stroke="#ddd" strokeWidth="6" fill="none" />
+    {/* Progress Circle */}
+    <Circle
+      cx="50"
+      cy="50"
+      r="40"
+      stroke="#7D3C98"
+      strokeWidth="40"
+      fill="none"
+      strokeDasharray={2 * Math.PI * 40}
+      strokeDashoffset={(2 * Math.PI * 40) - (progress / 100) * (2 * Math.PI * 40)}
+      strokeLinecap="round"
+    />
+  </Svg>
+  {/* Progress Text */}
+  <Text style={{ position: "absolute", fontSize: 18, fontWeight: "bold" }}>{progress}%</Text>
+</View>

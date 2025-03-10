@@ -104,76 +104,109 @@ const ChooseVideo = () => {
       console.log(error);
       setApiCalled(false);
     }
-  }
+  };
+
+  const requestMediaPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        if (Platform.Version >= 33) {
+          // For Android 13+ request READ_MEDIA_VIDEO permission
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
+          );
+  
+          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+            console.log("✅ Video permission granted");
+            return true;
+          } else {
+            console.log("❌ Video permission denied");
+            return false;
+          }
+        } else {
+          // For Android <13 use READ_EXTERNAL_STORAGE
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
+          );
+  
+          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+            console.log("✅ Storage permission granted");
+            return true;
+          } else {
+            console.log("❌ Storage permission denied");
+            return false;
+          }
+        }
+      } catch (error) {
+        console.error("Error requesting permission:", error);
+        return false;
+      }
+    }
+  };
 
   const openImagesLibrary = async () => {
+    const hasPermission = await requestMediaPermission();
+
+    if(!hasPermission) {
+      console.log("User denied permission");
+      closeModal();
+    }
     const options = {
       mediaType: 'video',
       durationLimit: 15,
       includeBase64: true
     };
 
-    if(Platform.OS === 'android') {
-      if(Platform.Version >= 33) {
-        const granted = await PermissionsAndroid.requestMultiple([
-          // PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
-          PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
-          // PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO,
-        ]);
-        if(
-          granted['android.permission.READ_MEDIA_VIDEO'] === PermissionsAndroid.RESULTS.GRANTED
-        ) {
-          launchImageLibrary(options, (response) => {
-            if(response.didCancel) {
-              // navigation.goBack();
-              console.log('User cancelled');
-            } else if(response.errorCode) {
-              // setPickerResponse(null);
-              console.log('Image picker error:', response.errorMessage);
-            } else {
-              // setPickerResponse(response);
-              // navigation.navigate('SelectedVideo', {
-              //   videoData: response.assets[0],
-              //   apiKey
-              // });
-              // console.log(response.assets[0]);
-              uploadVideoFile(response.assets[0]);
-            }
-            // navigation.goBack();
-            // console.log(response);
-            setIsModalOpen(false);
-          })
-        } else {
-          console.log("No permission");
-        }
+    launchImageLibrary(options, (response) => {
+      if(response.didCancel) {
+        // navigation.goBack();
+        console.log('User cancelled');
+      } else if(response.errorCode) {
+        // setPickerResponse(null);
+        console.log('Image picker error:', response.errorMessage);
       } else {
-        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
-        if(granted === PermissionsAndroid.RESULTS.GRANTED) {
-          launchImageLibrary(options, (response) => {
-            if(response.didCancel) {
-              // navigation.goBack();
-              console.log('User cancelled');
-            } else if(response.errorCode) {
-              // setPickerResponse(null);
-              console.log('Image picker error:', response.errorMessage);
-            } else {
-              // setPickerResponse(response);
-              // navigation.navigate('SelectedVideo', {
-              //   videoData: response.assets[0],
-              //   apiKey
-              // });
-              // console.log(response.assets[0]);
-              uploadVideoFile(response.assets[0]);
-            }
-            // navigation.goBack();
-            // console.log(response);
-            setIsModalOpen(false);
-          })
-        } else {
-          console.log("No permission");
-        }
+        uploadVideoFile(response.assets[0]);
       }
-    }
+      setIsModalOpen(false);
+    })
+
+    // if(Platform.OS === 'android') {
+    //   if(Platform.Version >= 33) {
+    //     const granted = await PermissionsAndroid.request(
+    //       PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
+    //     );
+    //     if(granted === PermissionsAndroid.RESULTS.GRANTED) {
+          
+    //     } else {
+    //       console.log("No permission");
+    //     }
+    //   } else {
+    //     const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
+    //     if(granted === PermissionsAndroid.RESULTS.GRANTED) {
+    //       launchImageLibrary(options, (response) => {
+    //         if(response.didCancel) {
+    //           // navigation.goBack();
+    //           console.log('User cancelled');
+    //         } else if(response.errorCode) {
+    //           // setPickerResponse(null);
+    //           console.log('Image picker error:', response.errorMessage);
+    //         } else {
+    //           // setPickerResponse(response);
+    //           // navigation.navigate('SelectedVideo', {
+    //           //   videoData: response.assets[0],
+    //           //   apiKey
+    //           // });
+    //           // console.log(response.assets[0]);
+    //           uploadVideoFile(response.assets[0]);
+    //         }
+    //         // navigation.goBack();
+    //         // console.log(response);
+    //         setIsModalOpen(false);
+    //       })
+    //     } else {
+    //       console.log("No permission");
+    //     }
+    //   }
+    // }
   };
 
   return (

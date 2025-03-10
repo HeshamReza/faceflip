@@ -1,4 +1,4 @@
-import { Animated, Button, Dimensions, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Animated, Button, Dimensions, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import React, { useEffect, useRef, useState } from 'react'
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import Video, { VideoRef } from 'react-native-video';
@@ -6,6 +6,7 @@ import axios from 'axios';
 import LinearGradient from 'react-native-linear-gradient';
 import { imagesPath } from '../assets/imagesPath';
 import RNFS from 'react-native-fs';
+import Svg, { Circle } from 'react-native-svg';
 
 const SelectedImage = ({route}:any) => {
   const navigation = useNavigation();
@@ -28,8 +29,13 @@ const SelectedImage = ({route}:any) => {
   const [currentTime, setCurrentTime] = useState<Number>(0);
   const [duration, setDuration] = useState<Number>(0);
   const [lastPosition, setLastPosition] = useState<Number>(0);
+  const [playButtonOpacity, setPlayButtonOpacity] = useState<Number>(1);
+  const [loading, setLoading] = useState<Boolean>(false);
+  const [progress, setProgress] = useState<Number>(0);
+  const [finalError, setFinalError] = useState<Boolean>(false);
 
   const togglePlayback = () => {
+    setPlayButtonOpacity(1);
     if(!isPlaying) {
       videoRef.current.seek(lastPosition);
     } else {
@@ -194,7 +200,13 @@ const SelectedImage = ({route}:any) => {
   const fetchVideo = async () => {
     const downloadForm = new FormData();
     if(data) {
+      setLoading(true);
+      setProgress(0);
       downloadForm.append("file_name", data.filename);
+
+      let interval = setInterval(() => {
+        setProgress((prev) => (prev < 90 ? prev + 10 : prev))
+      }, 500);
       try {
         const result = await axios.post('http://192.168.0.137:5002/download_file', downloadForm, {
           headers: {
@@ -209,7 +221,13 @@ const SelectedImage = ({route}:any) => {
         
         const base64Data = await blobToBase64(result.data);
         await RNFS.writeFile(filePath, base64Data, 'base64');
-        setVideoUrl(`file://${filePath}`);
+
+        clearInterval(interval);
+        setProgress(100);
+        setTimeout(() => {
+          setVideoUrl(`file://${filePath}`);
+          setLoading(false);
+        }, 5000);
 
         const fileExists = await RNFS.exists(filePath);
         if(fileExists) {
@@ -219,6 +237,8 @@ const SelectedImage = ({route}:any) => {
         }
       } catch (error) {
         console.log(error);
+        setLoading(false);
+        setFinalError(true);
       }
     }
   };
@@ -226,6 +246,28 @@ const SelectedImage = ({route}:any) => {
   useEffect(() => {
     fetchVideo();
   }, [data]);
+  
+  useEffect(() => {
+    if(isPlaying) {
+      let currentOpacity = 1;
+      const interval = setInterval(() => {
+        currentOpacity -= 0.3;
+        setPlayButtonOpacity(Math.max(0, currentOpacity));
+
+        if(currentOpacity <= 0) {
+          clearInterval(interval);
+        }
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if(duration === currentTime) {
+      setPlayButtonOpacity(1);
+    }
+  }, [duration, currentTime]);
 
   return (
     <ScrollView style={styles.mainContainer}>
@@ -236,123 +278,152 @@ const SelectedImage = ({route}:any) => {
       </View>
       {/* <Text>SelectedVideo</Text> */}
       {
-        videoUrl ? <View style={{width: "100%", height: 600, position: 'relative'}}>
-          <Video
-            source={{uri: videoUrl}}
-            ref={videoRef}
-            paused={!isPlaying}
-            resizeMode='contain'
-            onEnd={handleVideoEnd}
-            onProgress={(data) => setCurrentTime(data.currentTime)}
-            onLoad={(data) => setDuration(data.duration)}
-            style={{width: '100%', height: "100%"}}
-          />
-          <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
-            <Image source={isPlaying ? imagesPath.pauseButton : imagesPath.playButton} style={{width: 50, height: 50}} />
-          </TouchableOpacity>
-        </View> : data ? <View style={{width: '100%', height: 500, padding: 20, position: 'relative'}}>
-          {/* <Animated.View style={[styles.circle, { transform: [{rotate: spin}]}]} /> */}
-
-          <Image
-            source={{uri: ImageData.uri}}
-            style={{width: '100%', height: "100%", borderRadius: 8,}}
-          />
-        </View> : errorStatus ? <View style={styles.imageContainer}>
-          <Text style={styles.processingText}>Failed during processing.</Text>
-        </View> : <View style={styles.imageContainer}>
-          {
-            apiCalled && (
-              <>
-                <Animated.View
-                  style={[
-                    styles.glowingLine,
-                    {
-                      transform: [{translateX}],
-                      opacity: 0.3,
-                      width: 10,
-                      marginLeft: -5,
-                    }
-                  ]}
-                />
-                <Animated.View
-                  style={[
-                    styles.glowingLine,
-                    {
-                      transform: [{translateX}]
-                    }
-                  ]}
-                />
-                <Animated.View
-                  style={[
-                    styles.glowingLine,
-                    {
-                      transform: [{translateX}],
-                      opacity: 0.3,
-                      width: 10,
-                    }
-                  ]}
-                />
-              </>
-            )
-          }
-          <View style={styles.imageContainer2}>
-            <Image
-              source={{uri: ImageData.uri}}
-              style={{width: '100%', height: '100%', borderRadius: 8,}}
+        videoUrl
+        ? <View style={{width: "100%", height: 600, position: 'relative',}}>
+            <Video
+              source={{uri: videoUrl}}
+              ref={videoRef}
+              paused={!isPlaying}
+              resizeMode='contain'
+              onEnd={handleVideoEnd}
+              onProgress={(data) => setCurrentTime(data.currentTime)}
+              onLoad={(data) => setDuration(data.duration)}
+              style={{width: '100%', height: "100%"}}
             />
-
-            
-
-            {/* Top-Left Corner */}
-            <View style={[styles.corner, styles.topLeft]} />
-            
-            {/* Top-Right Corner */}
-            <View style={[styles.corner, styles.topRight]} />
-            
-            {/* Bottom-Left Corner */}
-            <View style={[styles.corner, styles.bottomLeft]} />
-            
-            {/* Bottom-Right Corner */}
-            <View style={[styles.corner, styles.bottomRight]} />
+            <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
+              <Image source={isPlaying ? imagesPath.pauseButton : imagesPath.playButton} style={{width: 50, height: 50, opacity: playButtonOpacity, margin: 'auto'}} />
+            </TouchableOpacity>
           </View>
-        </View>
+        : data
+          ? finalError
+            ? <View>
+              <Text>Error processing on video.</Text>
+            </View>
+            : <View style={{width: '100%', height: 500, padding: 20, position: 'relative'}}>
+                {/* <Animated.View style={[styles.circle, { transform: [{rotate: spin}]}]} /> */}
+
+                <View style={{position: 'absolute', top: 0, bottom: 0, left: 0, right: 0}}>
+                  <ActivityIndicator size="large" color="blue" style={{margin: 'auto', zIndex: 10}} />
+                </View>
+                <Image
+                  source={{uri: ImageData.uri}}
+                  style={{width: '100%', height: "100%", borderRadius: 8,}}
+                />
+              </View>
+          : errorStatus
+            ? <View style={styles.imageContainer}>
+                <Text style={styles.processingText}>Failed during processing.</Text>
+              </View>
+            : <View style={styles.imageContainer}>
+              {
+                apiCalled && (
+                  <>
+                    <Animated.View
+                      style={[
+                        styles.glowingLine,
+                        {
+                          transform: [{translateX}],
+                          opacity: 0.3,
+                          width: 10,
+                          marginLeft: -5,
+                        }
+                      ]}
+                    />
+                    <Animated.View
+                      style={[
+                        styles.glowingLine,
+                        {
+                          transform: [{translateX}]
+                        }
+                      ]}
+                    />
+                    <Animated.View
+                      style={[
+                        styles.glowingLine,
+                        {
+                          transform: [{translateX}],
+                          opacity: 0.3,
+                          width: 10,
+                        }
+                      ]}
+                    />
+                  </>
+                )
+              }
+              <View style={styles.imageContainer2}>
+                <Image
+                  source={{uri: ImageData.uri}}
+                  style={{width: '100%', height: '100%', borderRadius: 8,}}
+                />
+
+                
+
+                {/* Top-Left Corner */}
+                <View style={[styles.corner, styles.topLeft]} />
+                
+                {/* Top-Right Corner */}
+                <View style={[styles.corner, styles.topRight]} />
+                
+                {/* Bottom-Left Corner */}
+                <View style={[styles.corner, styles.bottomLeft]} />
+                
+                {/* Bottom-Right Corner */}
+                <View style={[styles.corner, styles.bottomRight]} />
+              </View>
+            </View>
       }
 
       <View style={{width: '100%', display: 'flex', flexDirection: 'column', height: 200}}>
         {
-          videoUrl ? null : data
-          ? errorStatus ? null : <Text style={styles.processingText}>Your video is coming soon...</Text>
-          : apiCalled ? <Text style={styles.processingText}>Your task is processing... {minutes}:{seconds}</Text> : null
+          videoUrl
+          ? null
+          : finalError
+            ? null
+            : data
+              ? errorStatus
+                ? null
+                : <Text style={styles.processingText}>Your video is coming soon...</Text>
+              : apiCalled
+                ? <Text style={styles.processingText}>Your task is processing... {minutes}:{seconds}</Text>
+                : null
         }
         
         {
-          videoUrl ? <View style={styles.finalButtonStyle}>
-            <TouchableOpacity
-              onPress={() => {
-                navigation.navigate('ExportScreen', {
-                  data: data,
-                  apiKey,
-                  videoUrl
-                })
-                // downloadVideo();
-              }}
-              style={styles.buttonStyle}
-            >
-              <Text style={styles.buttonText}>Export</Text>
-            </TouchableOpacity>
-          </View> : apiCalled
-          ? errorStatus ? null
-          : apiCalled ? <TouchableOpacity
-            onPress={() => {
-              // navigation.navigate('ExportScreen', {
-              //   data: data,
-              //   apiKey
-              // })
-            }}
-            style={styles.buttonStyle}
-          >
-            <Text style={styles.buttonText}>Wait in background</Text>
-          </TouchableOpacity> : null : <Text style={styles.waitingText}>Please don't lock the screen or switch the app</Text>
+          videoUrl
+          ? <View style={styles.finalButtonStyle}>
+              <TouchableOpacity
+                onPress={() => {
+                  navigation.navigate('ExportScreen', {
+                    data: data,
+                    apiKey,
+                    videoUrl
+                  })
+                  // downloadVideo();
+                }}
+                style={styles.buttonStyle}
+              >
+                <Text style={styles.buttonText}>Export</Text>
+              </TouchableOpacity>
+            </View>
+          : finalError
+            ? null
+            : apiCalled
+              ? errorStatus
+                ? null
+                : apiCalled
+                  ? <TouchableOpacity
+                    onPress={() => {
+                      // navigation.navigate('ExportScreen', {
+                      //   data: data,
+                      //   apiKey
+                      // })
+                    }}
+                    style={styles.buttonStyle}
+                  >
+                    <Text style={styles.buttonText}>Wait in background</Text>
+                  </TouchableOpacity>
+                  : null
+              : <Text style={styles.waitingText}>Please don't lock the screen or switch the app</Text>
         }
       </View>
 
@@ -446,8 +517,11 @@ const styles = StyleSheet.create({
   },
   playButton: {
     position: 'absolute',
-    top: '45%',
-    left: '45%',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    alignItems: 'center',
     // backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   backgroundVideo: {

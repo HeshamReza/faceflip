@@ -1,5 +1,5 @@
-import { Button, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import React, { useRef, useState } from 'react';
+import { Animated, Button, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
 import Video, { VideoRef } from 'react-native-video';
 import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -16,9 +16,11 @@ const SelectedVideo = ({route}:any) => {
   const [currentTime, setCurrentTime] = useState<Number>(0);
   const [duration, setDuration] = useState<Number>(0);
   const [lastPosition, setLastPosition] = useState<Number>(0);
+  const [playButtonOpacity, setPlayButtonOpacity] = useState<Number>(1);
   // const [isFocused, setIsFocused] = useState<Boolean>(false);
 
   const togglePlayback = () => {
+    setPlayButtonOpacity(1);
     if(!isPlaying) {
       videoRef.current.seek(lastPosition);
     } else {
@@ -26,6 +28,28 @@ const SelectedVideo = ({route}:any) => {
     }
     setIsPlaying(!isPlaying);
   };
+
+  useEffect(() => {
+    if(isPlaying) {
+      let currentOpacity = 1;
+      const interval = setInterval(() => {
+        currentOpacity -= 0.3;
+        setPlayButtonOpacity(Math.max(0, currentOpacity));
+
+        if(currentOpacity <= 0) {
+          clearInterval(interval);
+        }
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if(duration === currentTime) {
+      setPlayButtonOpacity(1);
+    }
+  }, [duration, currentTime]);
 
   const handleVideoEnd = () => {
     setIsPlaying(false);
@@ -67,7 +91,7 @@ const SelectedVideo = ({route}:any) => {
       </View> */}
 
       <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
-        <Image source={isPlaying ? imagesPath.pauseButton : imagesPath.playButton} style={{width: 50, height: 50}} />
+        <Image source={isPlaying ? imagesPath.pauseButton : imagesPath.playButton} style={{width: 50, height: 50, opacity: playButtonOpacity, margin: 'auto',}} />
       </TouchableOpacity>
 
       <View style={styles.buttonContainer}>
@@ -157,8 +181,11 @@ const styles = StyleSheet.create({
   },
   playButton: {
     position: 'absolute',
-    top: '45%',
-    left: '45%',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    alignItems: 'center',
     // backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   buttonContainer: {
