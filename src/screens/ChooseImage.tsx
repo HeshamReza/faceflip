@@ -7,6 +7,8 @@ import { imagesPath } from '../assets/imagesPath';
 import axios from 'axios';
 import LinearGradient from 'react-native-linear-gradient';
 
+//tes input
+
 const ChooseImage = ({route}:any) => {
   const navigation = useNavigation();
   const [isModalOpen, setIsModalOpen] = useState<Boolean>(false);
